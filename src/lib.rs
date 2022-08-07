@@ -89,8 +89,10 @@
 //! # }
 //! ```
 mod session;
+mod session_ext;
 
 pub use async_session;
 pub use axum_extra::extract::cookie::SameSite;
 
-pub use self::session::{Session, SessionLayer};
+pub use self::session::SessionLayer;
+pub use self::session_ext::Session;

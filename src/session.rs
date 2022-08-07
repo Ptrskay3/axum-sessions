@@ -134,15 +134,16 @@ impl<Store: SessionStore> SessionLayer<Store> {
         self
     }
 
-    async fn load_or_create(&self, cookie_value: Option<String>) -> async_session::Session {
+    async fn load_or_create(&self, cookie_value: Option<String>) -> crate::session_ext::Session {
         let session = match cookie_value {
             Some(cookie_value) => self.store.load_session(cookie_value).await.ok().flatten(),
             None => None,
         };
 
-        session
+        let inner = session
             .and_then(|session| session.validate())
-            .unwrap_or_default()
+            .unwrap_or_default();
+        crate::session_ext::Session::from_inner(inner)
     }
 
     fn build_cookie(&self, secure: bool, cookie_value: String) -> Cookie<'static> {
@@ -280,7 +281,11 @@ where
             let mut response = inner.call(request).await?;
 
             if session.is_destroyed() {
-                if let Err(e) = session_layer.store.destroy_session(session).await {
+                if let Err(e) = session_layer
+                    .store
+                    .destroy_session(session.into_inner())
+                    .await
+                {
                     tracing::error!("Failed to destroy session: {:?}", e);
                     *response.status_mut() = StatusCode::INTERNAL_SERVER_ERROR;
                 }
@@ -292,7 +297,14 @@ where
                     HeaderValue::from_str(&removal_cookie.to_string()).unwrap(),
                 );
             } else if session_layer.save_unchanged || session.data_changed() {
-                match session_layer.store.store_session(session).await {
+                if session.should_regenerate() {
+                    session.inner_regenerate();
+                }
+                match session_layer
+                    .store
+                    .store_session(session.into_inner())
+                    .await
+                {
                     Ok(Some(cookie_value)) => {
                         let cookie = session_layer.build_cookie(session_layer.secure, cookie_value);
                         response.headers_mut().insert(
