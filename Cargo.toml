@@ -22,7 +22,7 @@ version = "0.5.7"
 features = ["headers"]
 
 [dependencies.axum-extra]
-version = "0.3.4"
+version = "0.7.2"
 features = ["cookie-signed"]
 
 [dependencies.tokio]
